@@ -18,7 +18,7 @@ sudo access - this is only used to cleanup the generated folders under vault/dat
 1. Update the ansible/configure-vault.yml variables with your own values
 2. Run `bash 01-setup-and-run-vault.sh` - this will run docker-compose up --build  and run the ansible-playbook configure-vault.yml
 3. Upon a successful run, the unsealing keys and root_token will be saved within the ansible folder
-4. You can obtain a secret via the API by:
+4. You can obtain the secret via the API by running:
  
    `export VAULT_TOKEN=[vault token here]`
 
@@ -29,6 +29,8 @@ sudo access - this is only used to cleanup the generated folders under vault/dat
 
 (See https://www.vaultproject.io/api-docs/auth/userpass &
     https://www.vaultproject.io/api-docs/secret/kv/kv-v2 for more details)
+
+5. You can also access the Vault gui by going to http://127.0.0.1:8200/
 
 **Notes**
 There are a LOT of things that could be improved, some that come into mind:
