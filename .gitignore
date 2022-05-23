@@ -1,0 +1,7 @@
+vault/data/*
+vault/logs/*
+vault/policies/*
+ansible/keys
+ansible/root_token
+.env
+/.env2

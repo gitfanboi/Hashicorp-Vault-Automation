@@ -1,0 +1,31 @@
+---
+
+vault_url: "http://127.0.0.1:8200"
+
+key_value_engines:
+  - "not_ping"
+  - "ping"
+
+# username : password
+users:
+  developer: "welcome01"
+  devops: "welcome02"
+
+ping_secret_folder: "kv/ping/data"
+ping_ssh_secret_folder: "kv/not_ping/data"
+
+ping_team_policy: |
+                  path "kv/ping/*" { capabilities = ["create", "read", "update", "delete", "list"] }
+                  path "kv/not_ping/*" { capabilities = ["create", "read", "update", "list"] }
+
+#Secrets to create - follows the secret_name: -path -secret_value convention
+secrets:
+  love:
+    path: "{{ ping_secret_folder }}"
+    secret: "heart"
+  super_secret_secret:
+    path: "{{ ping_secret_folder }}"
+    secret: "not really"
+  some_other_secret:
+    path: "{{ ping_ssh_secret_folder }}"
+    secret: "sssssh"

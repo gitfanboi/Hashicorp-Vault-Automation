@@ -1,0 +1,173 @@
+---
+- hosts: localhost
+  gather_facts: true
+
+  tasks:
+    ############################################
+    # Start Initialization + Unsealing  Vault  #
+    ############################################
+    - name: "Initialize Vault"
+      uri:
+        url: "{{ vault_url }}/v1/sys/init"
+        validate_certs: no
+        method: POST
+        body:
+          secret_shares: 10
+          secret_threshold: 5
+        body_format: json
+      register: vault_init
+
+    - name: set variables for vault keys and root token
+      set_fact:
+        vault_keys: "{{ vault_init.json['keys'] }}"
+        root_token: "{{ vault_init.json['root_token'] }}"
+
+    - name: "Unseal Vault"
+      uri:
+        url: "{{ vault_url }}/v1/sys/unseal"
+        validate_certs: no
+        method: POST
+        body:
+          key: "{{ item }}"
+        body_format: json
+      register: unseal_result
+      with_items:
+        - "{{ vault_keys[0] }}"
+        - "{{ vault_keys[1] }}"
+        - "{{ vault_keys[2] }}"
+        - "{{ vault_keys[3] }}"
+        - "{{ vault_keys[4] }}"
+
+    - name: Creating Keys file
+      copy:
+        dest: "keys"
+        content: |
+            {{ vault_keys }}
+
+    - name: Creating a file with content
+      copy:
+        dest: "root_token"
+        content: "{{ root_token }}"
+
+    ############################################
+    # End Initialization + Unsealing  Vault  #
+    ############################################
+
+    #######################
+    # Core Configuration  #
+    #######################
+
+    - name: "Enable UserPassword Authentication"
+      uri:
+        url: "{{ vault_url }}/v1/sys/auth/userpass"
+        validate_certs: no
+        method: POST
+        headers:
+          X-Vault-Token: "{{ root_token }}"
+        body:
+          type: userpass
+          description: "Login with username and password"
+        body_format: json
+        status_code: 204
+
+    - name: "Create KV Engines/Mounts"
+      uri:
+        url: "{{ vault_url }}/v1/sys/mounts/kv/{{ item }}"
+        validate_certs: no
+        method: POST
+        headers:
+          X-Vault-Token: "{{ root_token }}"
+        body:
+          type: kv
+          options: 
+            version: 2
+        body_format: json
+        status_code: 204
+      with_items:
+        - "{{ key_value_engines | list }}"
+      register: result
+
+    - name: result
+      debug:
+        msg: "{{ result }}"
+
+    ###########################
+    # End Core Configuration  #
+    ###########################
+
+    #######################
+    # Start Customisation #
+    #######################
+
+    - name: "Create Vault Policy"
+      uri:
+        url: "{{ vault_url }}/v1/sys/policy/ping-team"
+        validate_certs: no
+        method: POST
+        headers:
+          X-Vault-Token: "{{ root_token }}"
+        body:
+          policy: '{{ ping_team_policy }}'
+        body_format: json
+        status_code: 204
+
+    - name: "Create Users"
+      uri:
+        url: "{{ vault_url }}/v1/auth/userpass/users/{{ item.key }}"
+        validate_certs: no
+        method: POST
+        headers:
+          X-Vault-Token: "{{ root_token }}"
+        body:
+          password: "{{ item.value }}"
+          policies: "default,ping-team"
+        body_format: json
+        status_code: 204
+      with_items:
+        - "{{ users | dict2items }}"
+
+    - name: "Login with Developer"
+      uri:
+        url: "{{ vault_url }}/v1/auth/userpass/login/developer"
+        validate_certs: no
+        method: POST
+        body:
+          password: "{{ users.developer }}"
+        body_format: json
+      register: login_result
+
+    - name: Set developer_token
+      set_fact:
+        developer_token: "{{ login_result.json.auth.client_token }}"
+
+    - name: "Create First Secret"
+      uri:
+        url: "{{ vault_url }}/v1/{{ item.value.path }}/{{ item.key }}"
+        validate_certs: no
+        method: POST
+        headers:
+          X-Vault-Token: "{{ developer_token }}"
+        body:
+          data:
+            secret : "{{ item.value.secret }}"
+        body_format: json
+        status_code: 200
+      with_items:
+        - "{{ secrets | dict2items }}"
+
+    - name: "Get Secret Sample"
+      uri:
+        url: "{{ vault_url }}/v1/kv/ping/data/love"
+        method: GET
+        headers:
+          X-Vault-Token: "{{ developer_token }}"
+        validate_certs: no
+      register: secret_sample
+
+    - name: secret_sample
+      debug:
+        msg: "{{ secret_sample }}"
+
+    ######################
+    # End Customisation #
+    #####################
